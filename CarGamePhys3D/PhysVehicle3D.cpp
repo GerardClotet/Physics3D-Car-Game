@@ -93,3 +93,10 @@ float PhysVehicle3D::GetKmh() const
 {
 	return vehicle->getCurrentSpeedKmHour();
 }
+
+vec3 PhysVehicle3D::GetForwardVector()
+{
+	btVector3 btForward = vehicle->getForwardVector();
+	vec3 forward_vector; forward_vector.Set(btForward.getX(), btForward.getY(), btForward.getZ());
+	return forward_vector;
+}
