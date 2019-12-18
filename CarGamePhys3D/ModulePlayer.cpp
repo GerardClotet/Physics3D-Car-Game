@@ -21,8 +21,20 @@ bool ModulePlayer::Start()
 	VehicleInfo car;
 
 	// Car properties ----------------------------------------
-	car.chassis_size.Set(2, 2, 4);
-	car.chassis_offset.Set(0, 1.5, 0);
+	car.chassis_size.Set(2.5, 1, 4);
+	car.chassis_offset.Set(0, 1, 0);
+
+	car.chassis_size2.Set(3, 0.12, 0.75);
+	car.chassis_offset2.Set(0, 0.75, 2.5);
+
+	car.chassis_size3.Set(0.25, 1, 0.25);
+	car.chassis_offset3.Set(0.75, 1.75, -1.75);
+
+	car.chassis_size4.Set(0.25, 1, 0.25);
+	car.chassis_offset4.Set(-0.75, 1.75, -1.75);
+
+	car.chassis_size5.Set(2.5, 0.2, 1);
+	car.chassis_offset5.Set(0, 2.5, -1.75);
 	car.mass = 500.0f;
 	car.suspensionStiffness = 15.88f;
 	car.suspensionCompression = 0.83f;
@@ -97,7 +109,10 @@ bool ModulePlayer::Start()
 	car.wheels[3].steering = false;
 
 	vehicle = App->physics->AddVehicle(car);
-	vehicle->SetPos(-190, 1, 180);
+	vehicle->SetPos(-175, 1, 190);
+	btQuaternion rotation;
+	rotation.setRotation({ 0, 1, 0 }, 3.14);
+	vehicle->SetRotation(rotation);
 	vehicle->SetType(PhysBody3D::type::PLAYER);
 	vehicle->collision_listeners.add(App->scene_intro);
 
@@ -153,7 +168,10 @@ update_status ModulePlayer::Update(float dt)
 	if(App->input->GetKey(SDL_SCANCODE_S) == KEY_REPEAT)
 	{
 		brake = BRAKE_POWER;
-		acceleration = -MAX_ACCELERATION;
+		if (speed > -MAX_VELOCITY)
+		{
+			acceleration = -MAX_ACCELERATION;
+		}
 
 	}
 
@@ -166,8 +184,15 @@ update_status ModulePlayer::Update(float dt)
 
 	vehicle->Render();
 
-	char title[80];
-	sprintf_s(title, "%.1f Km/h", vehicle->GetKmh());
+	if (vehicle->GetPos().y > max_height)
+	{
+		max_height = vehicle->GetPos().y;
+	}
+
+	char title[1000];
+	sprintf_s(title, "Max height: %.1f - velocity: %.1f Km/h", max_height, vehicle->GetKmh());
+
+
 	App->window->SetTitle(title);
 
 	return UPDATE_CONTINUE;
