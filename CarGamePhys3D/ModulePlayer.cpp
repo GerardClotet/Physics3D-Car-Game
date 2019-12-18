@@ -112,6 +112,7 @@ bool ModulePlayer::Start()
 	vehicle->SetPos(-175, 1, 190);
 	btQuaternion rotation;
 	rotation.setRotation({ 0, 1, 0 }, 3.14);
+	saved_rotation = rotation;
 	vehicle->SetRotation(rotation);
 	vehicle->SetType(PhysBody3D::type::PLAYER);
 	vehicle->collision_listeners.add(App->scene_intro);
@@ -132,6 +133,26 @@ void ModulePlayer::OnCollision(PhysBody3D* body1, PhysBody3D* body2)
 	LOG("collisionplayer");
 }
 
+vec3 ModulePlayer::GetSavedPosition()
+{
+	return saved_position;
+}
+
+void ModulePlayer::SetSavedPosition(vec3 pos)
+{
+	saved_position = pos;
+}
+
+btQuaternion ModulePlayer::GetSavedRotation()
+{
+	return saved_rotation;
+}
+
+void ModulePlayer::SetSavedRotation(btQuaternion rotation)
+{
+	saved_rotation = rotation;
+}
+
 // Update: draw background
 update_status ModulePlayer::Update(float dt)
 {
@@ -140,12 +161,15 @@ update_status ModulePlayer::Update(float dt)
 	speed = vehicle->GetKmh();
 
 	vec3 forward_vector = vehicle->GetForwardVector();
+	vec3 upward_vector = vehicle->GetUpwardVector();
 
 	forward_vector = -forward_vector;
-	forward_vector = forward_vector * 10;
-	forward_vector.y = forward_vector.y + 5;
+	forward_vector = forward_vector * 11;
+	upward_vector = upward_vector * 5;
 
-	App->camera->Position = forward_vector + vehicle->GetPos();
+	vec3 campos = forward_vector + upward_vector;
+	App->camera->Position = campos + vehicle->GetPos();
+
 	if(App->input->GetKey(SDL_SCANCODE_W) == KEY_REPEAT)
 	{
 		if (speed < MAX_VELOCITY) {
@@ -175,8 +199,18 @@ update_status ModulePlayer::Update(float dt)
 
 	}
 
-	vec3 up_pos = { vehicle->GetPos().x, vehicle->GetPos().y + 5, vehicle->GetPos().z };
-	App->camera->LookAt(up_pos);
+	if (App->input->GetKey(SDL_SCANCODE_SPACE) == KEY_REPEAT)
+	{
+		brake = BRAKE_POWER;
+	}
+
+	if (App->input->GetKey(SDL_SCANCODE_R) == KEY_DOWN) {
+		vehicle->SetPos(saved_position.x, saved_position.y, saved_position.z);
+		vehicle->SetRotation(saved_rotation);
+		vehicle->GetBody()->clearForces();
+	}
+
+	App->camera->LookAt(upward_vector + vehicle->GetPos());
 
 	vehicle->ApplyEngineForce(acceleration);
 	vehicle->Turn(turn);
