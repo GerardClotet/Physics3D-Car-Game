@@ -17,7 +17,7 @@
 
 ModulePhysics3D::ModulePhysics3D(Application* app, bool start_enabled) : Module(app, start_enabled)
 {
-	debug = true;
+	debug = false;
 
 	collision_conf = new btDefaultCollisionConfiguration();
 	dispatcher = new btCollisionDispatcher(collision_conf);
@@ -375,17 +375,7 @@ p2DynArray <Cube> ModulePhysics3D::AddRamp(vec3 position, int radius, int size, 
 	return cubes;
 }
 
-void ModulePhysics3D::DestroyBody(PhysBody3D* body)
-{
-	p2List_item <PhysBody3D*>* item;
-	for (item = bodies.getFirst(); item != bodies.getLast(); item = item->next)
-	{
-		if (item->data == body)
-		{
-			item->data->active = false;
-		}
-	}
-}
+
 
 // ---------------------------------------------------------
 void ModulePhysics3D::AddConstraintP2P(PhysBody3D& bodyA, PhysBody3D& bodyB, const vec3& anchorA, const vec3& anchorB)

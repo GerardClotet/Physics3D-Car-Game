@@ -40,6 +40,7 @@ public:
 	update_status Update();
 	bool CleanUp();
 
+	bool pause = false;
 private:
 
 	void AddModule(Module* mod);

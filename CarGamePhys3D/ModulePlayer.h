@@ -26,16 +26,23 @@ public:
 	void SetSavedPosition(vec3 pos);
 	btQuaternion GetSavedRotation();
 	void SetSavedRotation(btQuaternion rotation);
+	void SetPosition(int x, int y, int z);
+	void SetRotation(btQuaternion rot);
+	float GetVehicleSpeed();
+	vec3 GetPosition();
+	vec3 GetUpwardPosition();
+	PhysBody3D* GetVehicle();
 
 public:
 
+	float max_height = 0;
+private:
 	PhysVehicle3D* vehicle;
 	float turn;
 	float acceleration;
 	float brake;
 	float offset_x = 0;
 	float speed;
-	float max_height = 0;
 	vec3 saved_position = { -175, 1, 190 };
 	btQuaternion saved_rotation;
 };

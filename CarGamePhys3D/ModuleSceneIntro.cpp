@@ -1,11 +1,10 @@
-#include "Globals.h"
 #include "Application.h"
 #include "ModuleSceneIntro.h"
-#include "Primitive.h"
 #include "PhysBody3D.h"
 
 ModuleSceneIntro::ModuleSceneIntro(Application* app, bool start_enabled) : Module(app, start_enabled)
 {
+
 }
 
 ModuleSceneIntro::~ModuleSceneIntro()
@@ -19,10 +18,18 @@ bool ModuleSceneIntro::Start()
 
 	CreateMap();
 
-	App->camera->Move(vec3(1.0f, 1.0f, 0.0f));
-	//App->physics->AddRamp({ 20, 9.6f , 0 }, 11, 12);
+	total_time = new Timer();
 
-	//total_time = new Timer();
+	btQuaternion player_start_rot({ 0, 1, 0 }, 3.14);
+
+	App->player->SetPosition(player_start_pos.x, player_start_pos.y, player_start_pos.z);
+	App->player->SetRotation(player_start_rot);
+	App->player->SetSavedPosition(player_start_pos);
+	App->player->SetSavedRotation(player_start_rot);
+
+	App->audio->PlayMusic("Audio/DarudeSandstorm.ogg", 0.0f);
+	coin_fx = App->audio->LoadFx("Audio/coin.wav");
+	win_fx = App->audio->LoadFx("Audio/win.wav");
 
 	return ret;
 }
@@ -32,13 +39,24 @@ bool ModuleSceneIntro::CleanUp()
 {
 	LOG("Unloading Intro scene");
 
+	for (int i = 0; i < scene_points_pb.Count(); i++)
+	{
+		scene_points_pb[i] = nullptr;
+	}
+
+	scene_points_pb.Clear();
+	scene_points.Clear();
+
+	scene_terrain.Clear();
+
+	total_time = nullptr;
+
 	return true;
 }
 
 // Update
 update_status ModuleSceneIntro::Update(float dt)
 {
-
 	for (int i = 0; i < scene_terrain.Count(); i++)
 	{
 		scene_terrain[i].Render();
@@ -49,25 +67,62 @@ update_status ModuleSceneIntro::Update(float dt)
 		scene_points[i].Render();
 	}
 
+	if (App->input->GetKey(SDL_SCANCODE_T) == KEY_DOWN)
+	{
+		Win();
+	}
+
+	if (App->input->GetKey(SDL_SCANCODE_RETURN) == KEY_DOWN)
+	{
+		if (App->pause)
+		{
+			Restart();
+			App->pause = false;
+			on_win_scene = false;
+		}
+	}
+
+	if (on_win_scene)
+	{
+		for (int i = 0; i < stars.Count(); i++)
+		{
+			stars[i].Render();
+		}
+	}
+
+	char title[1000];
+	Uint32 sec = total_time->Read() / 1000;
+	if (!App->pause)time_left = max_time_per_level - sec;
+	sprintf_s(title, "SECONDS LEFT: %u - SCORE :%i - MAX HEIGHT: %.1f - VELOCITY: %.1f Km/h", time_left, App->scene_intro->score, App->player->max_height, App->player->GetVehicleSpeed());
+	App->window->SetTitle(title);
+
+	if (time_left == 0)
+	{
+		Lose();
+	}
+
 	return UPDATE_CONTINUE;
 }
 
 void ModuleSceneIntro::OnCollision(PhysBody3D* body1, PhysBody3D* body2)
 {
-	if (body1->active && body2->active)
+	if (body1->active && body2->active && body1 == App->player->GetVehicle())
 	{
 		switch (body2->GetType())
 		{
+		case PhysBody3D::type::END:
+			if (!on_win_scene)Win(); break;
 		case PhysBody3D::type::POINT:
 			DestroyScorePoint(body2);
-			App->physics->DestroyBody(body2);
 			score += 150;
+			App->audio->PlayFx(coin_fx);
 			break;
 		case PhysBody3D::type::CHECKPOINT: {
 			App->player->SetSavedPosition(body2->GetPos());
 			btQuaternion rotation(body2->GetRotation().getAxis(), body2->GetRotation().getAngle());
 			App->player->SetSavedRotation(rotation);
-		}break;
+		}
+										   break;
 		default:
 			break;
 		}
@@ -76,6 +131,18 @@ void ModuleSceneIntro::OnCollision(PhysBody3D* body1, PhysBody3D* body2)
 
 void ModuleSceneIntro::CreateMap()
 {
+	CreateTerrain();
+	CreateRamps();
+	CreateAllScorePoints();
+}
+
+void ModuleSceneIntro::CreateTerrain()
+{
+	Cube end(100, 100, 40);
+	end.SetPos(145, 52, -175);
+	endsensor = App->physics->AddBody(end, 0);
+	endsensor->SetType(PhysBody3D::type::END);
+	endsensor->SetAsSensor(true);
 
 	Cube way1(50, 0.2F, 400);
 	way1.color = White;
@@ -250,7 +317,10 @@ void ModuleSceneIntro::CreateMap()
 	floor = { 400, 0, 400 };
 	floor.color = DarkGray;
 	scene_terrain.PushBack(floor);
+}
 
+void ModuleSceneIntro::CreateRamps()
+{
 	p2DynArray <Cube> ramp_1 = App->physics->AddRamp({ -175, 48 , 140 }, 50, 9, false);
 
 	for (int i = 0; i < ramp_1.Count(); i++)
@@ -285,20 +355,6 @@ void ModuleSceneIntro::CreateMap()
 	{
 		scene_terrain.PushBack(ramp_4[i]);
 	}
-
-	//p2DynArray <Cube> ramp_3 = App->physics->AddRamp({ -0, 48 , 0 }, 50, 500, true);
-
-	//for (int i = 0; i < ramp_3.Count(); i++)
-	//{
-	//	scene_terrain.PushBack(ramp_3[i]);
-	//}
-
-	CreateScorePoints({ -175, 1, 120 }, 4, 15);
-	CreateScorePoints({ -175, 1, -15 }, 3, 15);
-	CreateScorePoints({ -175, 1, -70 }, 3, 15);
-	CreateScorePoints({ -100, 40, -25 }, 3, 15);
-	CreateScorePoints({ -25, 26, -25 }, 3, 15);
-	CreateScorePoints({ 100, 1, 0 }, 3, 15);
 
 	p2DynArray <Cube> reception_2 = App->physics->AddRamp({ -100, 68 , 70 }, 70, 7, false, 0, 40, 3, 5);
 
@@ -363,19 +419,11 @@ void ModuleSceneIntro::CreateMap()
 	{
 		scene_terrain.PushBack(ramp_10[i]);
 	}
-
-}
-
-void ModuleSceneIntro::CreateTerrain()
-{
-}
-
-void ModuleSceneIntro::CreateRamps()
-{
 }
 
 void ModuleSceneIntro::CreateScorePoints(vec3 starting_position, uint num_points, uint pos_incr)
 {
+	int incr = pos_incr;
 	for (int i = 0; i < num_points; i++)
 	{
 		Cube points(2, 2, 2);
@@ -384,10 +432,78 @@ void ModuleSceneIntro::CreateScorePoints(vec3 starting_position, uint num_points
 		scene_points.PushBack(points);
 		PhysBody3D* sensor = App->physics->AddBody(points, 0);
 		sensor->SetAsSensor(true);
-		pos_incr += 15;
+		pos_incr += incr;
 		sensor->SetType(PhysBody3D::type::POINT);
 		scene_points_pb.PushBack(sensor);
 	}
+}
+
+void ModuleSceneIntro::CreateAllScorePoints()
+{
+	CreateScorePoints({ -175, 1, 120 }, 4, 15);
+	CreateScorePoints({ -175, 1, -15 }, 3, 15);
+	CreateScorePoints({ -175, 1, -65 }, 3, 15);
+	CreateScorePoints({ -167, 32, -65 }, 1, 15);
+	CreateScorePoints({ -158, 1, -175 }, 8, 15);
+	CreateScorePoints({ -82, 1, -190 }, 4, 15);
+	CreateScorePoints({ -90, 32, -150 }, 1, 15);
+	CreateScorePoints({ -100, 1, -155 }, 4, 15);
+	CreateScorePoints({ -100, 32, -25 }, 3, 5);
+	CreateScorePoints({ -100, 1, 60 }, 8, 15);
+	CreateScorePoints({ -25, 1, 60 }, 8, 15);
+	CreateScorePoints({ -25, 28, -30 }, 3, 5);
+	CreateScorePoints({ -25, 32, -30 }, 3, 5);
+	CreateScorePoints({ -25, 36, -30 }, 3, 5);
+	CreateScorePoints({ -25, 1, -180 }, 4, 15);
+	CreateScorePoints({ 55, 1, -198 }, 4, 15);
+	CreateScorePoints({ 50, 32, -156 }, 1, 15);
+	CreateScorePoints({ 42, 1, -155 }, 4, 15);
+	CreateScorePoints({ 42, 34, -30 }, 5, 5);
+	CreateScorePoints({ 42, 30, -30 }, 5, 5);
+	CreateScorePoints({ 42, 38, -30 }, 5, 5);
+	CreateScorePoints({ 38, 34, -30 }, 5, 5);
+	CreateScorePoints({ 46, 34, -30 }, 5, 5);
+	CreateScorePoints({ 45, 1, 55 }, 3, 15);
+	CreateScorePoints({ 55, 1, 60 }, 4, 15);
+	CreateScorePoints({ 50, 30, 100 }, 1, 15);
+	CreateScorePoints({ 55, 2, 150 }, 4, 5);
+	CreateScorePoints({ 65, 50, 220 }, 1, 5);
+	CreateScorePoints({ 70, 50, 220 }, 1, 5);
+	CreateScorePoints({ 75, 50, 220 }, 1, 5);
+	CreateScorePoints({ 80, 50, 220 }, 1, 5);
+	CreateScorePoints({ 85, 50, 220 }, 1, 5);
+	CreateScorePoints({ 90, 50, 220 }, 1, 5);
+	CreateScorePoints({ 95, 50, 220 }, 1, 5);
+	CreateScorePoints({ 100, 50, 220 }, 1, 5);
+	CreateScorePoints({ 105, 50, 220 }, 1, 5);
+	CreateScorePoints({ 110, 50, 220 }, 1, 5);
+	CreateScorePoints({ 115, 50, 220 }, 1, 5);
+	CreateScorePoints({ 120, 50, 220 }, 1, 5);
+	CreateScorePoints({ 125, 50, 220 }, 1, 5);
+	CreateScorePoints({ 130, 50, 220 }, 1, 5);
+
+	CreateScorePoints({ 100, 1, 60 }, 9, 10);
+	CreateScorePoints({ 105, 1, 60 }, 9, 10);
+	CreateScorePoints({ 110, 1, 60 }, 9, 10);
+	CreateScorePoints({ 115, 1, 60 }, 9, 10);
+	CreateScorePoints({ 120, 1, 60 }, 9, 10);
+	CreateScorePoints({ 125, 1, 60 }, 9, 10);
+	CreateScorePoints({ 130, 1, 60 }, 9, 10);
+	CreateScorePoints({ 135, 1, 60 }, 9, 10);
+	CreateScorePoints({ 140, 1, 60 }, 9, 10);
+	CreateScorePoints({ 145, 1, 60 }, 9, 10);
+	CreateScorePoints({ 150, 1, 60 }, 9, 10);
+	CreateScorePoints({ 155, 1, 60 }, 9, 10);
+	CreateScorePoints({ 160, 1, 60 }, 9, 10);
+	CreateScorePoints({ 165, 1, 60 }, 9, 10);
+	CreateScorePoints({ 170, 1, 60 }, 9, 10);
+	CreateScorePoints({ 175, 1, 60 }, 9, 10);
+	CreateScorePoints({ 180, 1, 60 }, 9, 10);
+	CreateScorePoints({ 185, 1, 60 }, 9, 10);
+	CreateScorePoints({ 190, 1, 60 }, 9, 10);
+	CreateScorePoints({ 195, 1, 60 }, 9, 10);
+
+	score_points_full = true;
 }
 
 void ModuleSceneIntro::DestroyScorePoint(PhysBody3D* point)
@@ -396,9 +512,22 @@ void ModuleSceneIntro::DestroyScorePoint(PhysBody3D* point)
 	{
 		if (scene_points_pb[i] == point)
 		{
-			scene_points.Pop(scene_points[i]);
-			scene_points_pb.Pop(scene_points_pb[i]);
+			scene_points[i].color = White;
+			scene_points_pb[i]->active = false;
 		}
+	}
+}
+
+void ModuleSceneIntro::ResetScorePoints()
+{
+	for (int i = 0; i < scene_points.Count(); i++)
+	{
+		scene_points[i].color = Yellow;
+	}
+
+	for (int i = 0; i < scene_points_pb.Count(); i++)
+	{
+		scene_points_pb[i]->active = true;
 	}
 }
 
@@ -409,4 +538,65 @@ void ModuleSceneIntro::CreateCheckPoint(vec3 pos, vec3 size, btQuaternion rotati
 	checkpoint->SetType(PhysBody3D::type::CHECKPOINT);
 	checkpoint->SetPos(pos.x, pos.y, pos.z);
 	checkpoint->SetRotation(rotation);
+}
+
+int ModuleSceneIntro::GetTotalScore()
+{
+	return score / 150;
+}
+
+void ModuleSceneIntro::Win()
+{
+	int star_counter = 0;
+	stars.Clear();
+
+	App->audio->PlayFx(win_fx);
+
+	if (GetTotalScore() > 0 && GetTotalScore() < 30) {
+		star_counter = 0;
+	}
+	if (GetTotalScore() > 30 && GetTotalScore() < 60)
+	{
+		star_counter = 1;
+	}
+	if (GetTotalScore() > 60) {
+		star_counter = 2;
+	}
+
+	for (int i = 0; i <= star_counter; i++)
+	{
+		stars.PushBack(Cube(2, 2, 2));
+		stars[i].color = Yellow;
+		switch (i)
+		{
+		case 0: stars[i].SetPos(App->player->GetUpwardPosition().x + App->player->GetPosition().x - 5, App->player->GetUpwardPosition().y * 5 + App->player->GetPosition().y, App->player->GetUpwardPosition().z * 5 + App->player->GetPosition().z); break;
+		case 1: stars[i].SetPos(App->player->GetUpwardPosition().x + App->player->GetPosition().x, App->player->GetUpwardPosition().y * 5 + App->player->GetPosition().y, App->player->GetUpwardPosition().z * 5 + App->player->GetPosition().z); break;
+		case 2: stars[i].SetPos(App->player->GetUpwardPosition().x * 5 + App->player->GetPosition().x + 5, App->player->GetUpwardPosition().y * 5 + App->player->GetPosition().y, App->player->GetUpwardPosition().z * 5 + App->player->GetPosition().z); break;
+		default:
+			break;
+		}
+
+	}
+
+	on_win_scene = true;
+	App->pause = true;
+}
+
+void ModuleSceneIntro::Lose()
+{
+	if (!App->pause)App->pause = true;
+}
+
+void ModuleSceneIntro::Restart()
+{
+	btQuaternion player_start_rot({ 0, 1, 0 }, 3.14);
+	ResetScorePoints();
+	App->player->SetPosition(player_start_pos.x, player_start_pos.y, player_start_pos.z);
+	App->player->SetRotation(player_start_rot);
+	App->player->SetSavedPosition(player_start_pos);
+	App->player->SetSavedRotation(player_start_rot);
+	score = 0;
+	App->player->max_height = 0;
+	total_time->Start();
+	App->audio->PlayMusic("Audio/DarudeSandstorm.ogg", 0.0f);
 }

@@ -5,6 +5,7 @@
 // =================================================
 PhysBody3D::PhysBody3D(btRigidBody* body) : body(body)
 {
+	my_type = type::NONE;
 	body->setUserPointer(this);
 
 }

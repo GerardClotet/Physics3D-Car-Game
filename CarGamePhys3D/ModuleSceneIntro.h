@@ -4,7 +4,6 @@
 #include "Globals.h"
 #include "Primitive.h"
 
-#define MAX_SNAKE 2
 
 struct PhysBody3D;
 struct PhysMotor3D;
@@ -26,14 +25,22 @@ public:
 	void CreateTerrain();
 	void CreateRamps();
 	void CreateScorePoints(vec3 starting_position, uint num_points, uint pos_incr);
+	void CreateAllScorePoints();
+	void ResetScorePoints();
 	void DestroyScorePoint(PhysBody3D* point);
 	void CreateCheckPoint(vec3 pos, vec3 size, btQuaternion rotation);
+	int GetTotalScore();
+	void Win();
+	void Lose();
+	void Restart();
+	bool on_win_scene = false;
 
-public:
+private:
 
 	uint score = 0;
 	Cube floor;
-
+	unsigned int coin_fx;
+	unsigned int win_fx;
 
 	p2DynArray <Cube> scene_terrain;
 	p2DynArray <Cube> scene_points;
@@ -41,6 +48,14 @@ public:
 	p2DynArray <Sphere> scene_spheres;
 	p2DynArray <Cylinder> scene_cylinders;
 
-	//Timer* total_time = nullptr;
+	p2DynArray <Cube> stars;
+	PhysBody3D* endsensor;
+
+	Timer* total_time = nullptr;
+	Uint32 max_time_per_level = 110;
+	Uint32 time_left = 0;
+
+	vec3 player_start_pos = { -175, 0, 190 };
+	bool score_points_full = false;
 
 };

@@ -4,7 +4,7 @@
 #include "Primitive.h"
 #include "PhysVehicle3D.h"
 #include "PhysBody3D.h"
-
+#include "ModuleSceneIntro.h"
 ModulePlayer::ModulePlayer(Application* app, bool start_enabled) : Module(app, start_enabled), vehicle(NULL)
 {
 	turn = acceleration = brake = 0.0f;
@@ -21,7 +21,7 @@ bool ModulePlayer::Start()
 	VehicleInfo car;
 
 	// Car properties ----------------------------------------
-	car.chassis_size.Set(2.5, 1, 4);
+	car.chassis_size.Set(3, 1, 4);
 	car.chassis_offset.Set(0, 1, 0);
 
 	car.chassis_size2.Set(3, 0.12, 0.75);
@@ -51,7 +51,7 @@ bool ModulePlayer::Start()
 
 	// Don't change anything below this line ------------------
 
-	float half_width = car.chassis_size.x*0.5f;
+	float half_width = car.chassis_size.x * 0.6f;
 	float half_length = car.chassis_size.z*0.5f;
 	
 	vec3 direction(0,-1,0);
@@ -109,11 +109,7 @@ bool ModulePlayer::Start()
 	car.wheels[3].steering = false;
 
 	vehicle = App->physics->AddVehicle(car);
-	vehicle->SetPos(-175, 1, 190);
-	btQuaternion rotation;
-	rotation.setRotation({ 0, 1, 0 }, 3.14);
-	saved_rotation = rotation;
-	vehicle->SetRotation(rotation);
+	
 	vehicle->SetType(PhysBody3D::type::PLAYER);
 	vehicle->collision_listeners.add(App->scene_intro);
 
@@ -133,11 +129,36 @@ void ModulePlayer::OnCollision(PhysBody3D* body1, PhysBody3D* body2)
 	LOG("collisionplayer");
 }
 
+void ModulePlayer::SetPosition(int x, int y, int z)
+{
+	vehicle->SetPos(x, y, z);
+}
+
+void ModulePlayer::SetRotation(btQuaternion rot)
+{
+	vehicle->SetRotation(rot);
+}
+
 vec3 ModulePlayer::GetSavedPosition()
 {
 	return saved_position;
 }
-
+float ModulePlayer::GetVehicleSpeed()
+{
+	return speed;
+}
+vec3 ModulePlayer::GetPosition()
+{
+	return vehicle->GetPos();
+}
+vec3 ModulePlayer::GetUpwardPosition()
+{
+	return vehicle->GetUpwardVector();
+}
+PhysBody3D* ModulePlayer::GetVehicle()
+{
+	return vehicle;
+}
 void ModulePlayer::SetSavedPosition(vec3 pos)
 {
 	saved_position = pos;
@@ -157,46 +178,48 @@ void ModulePlayer::SetSavedRotation(btQuaternion rotation)
 update_status ModulePlayer::Update(float dt)
 {
 	turn = acceleration = brake = 0.0f;
-
 	speed = vehicle->GetKmh();
 
-	vec3 forward_vector = vehicle->GetForwardVector();
-	vec3 upward_vector = vehicle->GetUpwardVector();
+	if (!App->camera->debug)
+	{
 
-	forward_vector = -forward_vector;
-	forward_vector = forward_vector * 11;
-	upward_vector = upward_vector * 5;
+		vec3 forward_vector = vehicle->GetForwardVector();
+		vec3 upward_vector = vehicle->GetUpwardVector();
 
-	vec3 campos = forward_vector + upward_vector;
-	App->camera->Position = campos + vehicle->GetPos();
+		forward_vector = -forward_vector;
+		forward_vector = forward_vector * 11;
+		upward_vector = upward_vector * 5;
 
-	if(App->input->GetKey(SDL_SCANCODE_W) == KEY_REPEAT)
+		vec3 campos = forward_vector + upward_vector;
+		App->camera->Position = campos + vehicle->GetPos();
+
+		App->camera->LookAt(upward_vector + vehicle->GetPos());
+	}
+
+	if (App->input->GetKey(SDL_SCANCODE_W) == KEY_REPEAT)
 	{
 		if (speed < MAX_VELOCITY) {
 			acceleration = MAX_ACCELERATION;
 		}
 	}
 
-	if(App->input->GetKey(SDL_SCANCODE_A) == KEY_REPEAT)
+	if (App->input->GetKey(SDL_SCANCODE_A) == KEY_REPEAT)
 	{
-		if(turn < TURN_DEGREES)
-			turn +=  TURN_DEGREES;
-	}
-
-	if(App->input->GetKey(SDL_SCANCODE_D) == KEY_REPEAT)
-	{
-		if(turn > -TURN_DEGREES)
-			turn -= TURN_DEGREES;
-	}
-
-	if(App->input->GetKey(SDL_SCANCODE_S) == KEY_REPEAT)
-	{
-		brake = BRAKE_POWER;
-		if (speed > -MAX_VELOCITY)
-		{
-			acceleration = -MAX_ACCELERATION;
+		if (turn < TURN_DEGREES) {
+			turn += TURN_DEGREES;
 		}
+	}
 
+	if (App->input->GetKey(SDL_SCANCODE_D) == KEY_REPEAT)
+	{
+		if (turn > -TURN_DEGREES) {
+			turn -= TURN_DEGREES;
+		}
+	}
+
+	if (App->input->GetKey(SDL_SCANCODE_S) == KEY_REPEAT)
+	{
+		acceleration = -MAX_ACCELERATION;
 	}
 
 	if (App->input->GetKey(SDL_SCANCODE_SPACE) == KEY_REPEAT)
@@ -204,13 +227,22 @@ update_status ModulePlayer::Update(float dt)
 		brake = BRAKE_POWER;
 	}
 
-	if (App->input->GetKey(SDL_SCANCODE_R) == KEY_DOWN) {
+	if (App->input->GetKey(SDL_SCANCODE_R) == KEY_DOWN)
+	{
 		vehicle->SetPos(saved_position.x, saved_position.y, saved_position.z);
 		vehicle->SetRotation(saved_rotation);
 		vehicle->GetBody()->clearForces();
+		vehicle->GetBody()->setLinearVelocity({ 0, 0, 0 });
 	}
 
-	App->camera->LookAt(upward_vector + vehicle->GetPos());
+	if (App->input->GetKey(SDL_SCANCODE_RETURN) == KEY_DOWN)
+	{
+		if (App->pause)
+		{
+			vehicle->GetBody()->clearForces();
+			vehicle->GetBody()->setLinearVelocity({ 0, 0, 0 });
+		}
+	}
 
 	vehicle->ApplyEngineForce(acceleration);
 	vehicle->Turn(turn);
@@ -218,16 +250,12 @@ update_status ModulePlayer::Update(float dt)
 
 	vehicle->Render();
 
+	//TODO Set Score to game window
+
 	if (vehicle->GetPos().y > max_height)
 	{
 		max_height = vehicle->GetPos().y;
 	}
-
-	char title[1000];
-	sprintf_s(title, "Max height: %.1f - velocity: %.1f Km/h", max_height, vehicle->GetKmh());
-
-
-	App->window->SetTitle(title);
 
 	return UPDATE_CONTINUE;
 }
