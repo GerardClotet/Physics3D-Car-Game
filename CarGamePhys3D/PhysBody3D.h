@@ -2,6 +2,7 @@
 #define __PhysBody3D_H__
 
 #include "p2List.h"
+#include "Primitive.h"
 
 class btRigidBody;
 class Module;
@@ -11,6 +12,8 @@ class vec3;
 struct PhysBody3D
 {
 	friend class ModulePhysics3D;
+	enum class type { PLAYER, POINT };
+
 public:
 	PhysBody3D(btRigidBody* body);
 	~PhysBody3D();
@@ -23,9 +26,15 @@ public:
 
 	vec3 GetPos();
 
+
+	type GetType();
+	void SetType(type my_type);
+
+	bool active = true;
 private:
 	btRigidBody* body = nullptr;
 	bool is_sensor = false;
+	type my_type;
 
 public:
 	p2List<Module*> collision_listeners;
